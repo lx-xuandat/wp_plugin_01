@@ -1,0 +1,15 @@
+{
+    "name": "datlx/datlx",
+    "autoload": {
+        "psr-4": {
+            "Datlx\\App\\": "app/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Luu Xuan Dat",
+            "email": "datlx@yahoo.com"
+        }
+    ],
+    "require": {}
+}

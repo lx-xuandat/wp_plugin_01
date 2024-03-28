@@ -1,0 +1,90 @@
+<?php
+
+
+    private function loadHooks()
+    {
+        $hookTypes = require_once plugin_dir_path(dirname(__FILE__)) . 'cache/hooks.php';
+
+        foreach ($hookTypes as $hookType => $hooks) {
+            foreach ($hooks as $hook) {
+                $hookType(
+                    $hook['hook_name'],
+                    [
+                        Plugin::resolve($hook['callback'][0]),
+                        $hook['callback'][1],
+                    ],
+                    $hook['priority'],
+                    $hook['accepted_args']
+                );
+            }
+        }
+    }
+
+    private function cacheHooks()
+    {
+        $cacheHooks = [];
+        foreach ($this->services as $service) {
+            $reflector = new \ReflectionClass($service);
+            foreach (get_class_methods($service) as $method) {
+                $doc = preg_replace('/\s+/', '', $reflector->getMethod($method)->getDocComment());
+                $hook = $this->detachHook($doc);
+                if ($hook !== null) {
+                    $params = explode(',', $hook);
+                    $params['priority'] = (isset($params[2]) && $params[2] !== null) ? (int) $params[2] : 10;
+                    $params['accepted_args'] = (isset($params[3]) && $params[3] !== null) ? (int) $params[3] : 1;
+
+                    $cacheHooks[$params[0]][] = [
+                        'hook_name' => preg_replace('/\s+/', '', $params[1]),
+                        'callback' => [
+                            $service,
+                            $method
+                        ],
+                        'priority' => $params['priority'],
+                        'accepted_args' => $params['accepted_args']
+                    ];
+                }
+            }
+        }
+        $this->cacheHook(plugin_dir_path(dirname(__FILE__)) . 'cache/hooks.php', $cacheHooks);
+    }
+
+    /**
+     * get name hook of method
+     * @return null|string hooK_name
+     */
+    private function detachHook($s, $hookType = 'add_action')
+    {
+        // $s like /** * @add_action admin_init */
+        try {
+            #region 01
+            $subStr = '@' . $hookType;
+            $position = strpos($s, $subStr);
+
+            if ($position !== false) {
+                $pHook = $position + strlen($subStr);
+            } else {
+                throw new \Exception("No has string @$hookType", 0);
+            }
+            #endregion
+
+            #region 02
+            $subStr = '@' . $hookType;
+            $startPosition = strpos($s, $subStr) + strlen($subStr);
+            $pAsterisk = strpos($s, '*', $startPosition);
+
+            if ($pAsterisk === false) {
+                throw new \Exception("No has string Asterisk", 0);
+            }
+            #endregion
+
+            $hook = substr($s, $pHook, ($pAsterisk - $pHook));
+
+            return strlen($hook) > 0 ? ($hookType . ',' . $hook) : null;
+        } catch (\Exception $e) {
+            if ($hookType == 'add_action') {
+                return $this->detachHook($s, 'add_filter');
+            } else {
+                return null;
+            }
+        }
+    }
